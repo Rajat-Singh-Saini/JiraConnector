@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Jira Finder</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <a class="brand" href="{{ url_for('home') }}" aria-label="Jira Finder home">
+        <span class="brand-mark" aria-hidden="true">J</span>
+        <span>Jira<span class="brand-light">Finder</span></span>
+      </a>
+      <span class="connection"><span class="connection-dot"></span> Jira Cloud search</span>
+    </header>
+
+    <section class="hero" aria-labelledby="page-title">
+      <div class="eyebrow"><span class="sparkle" aria-hidden="true">✳</span> YOUR JIRA, IN PLAIN ENGLISH</div>
+      <h1 id="page-title">Find the work<br>that <span>matters.</span></h1>
+      <p class="intro">Ask a question. Get the Jira issues you need, without writing JQL.</p>
+
+      <form class="search-card" method="post" action="{{ url_for('home') }}">
+        <label for="query">What would you like to find?</label>
+        <textarea id="query" name="query" rows="2" maxlength="1000" required placeholder="e.g. Show me unresolved bugs assigned to me, updated this week">{{ question }}</textarea>
+        <div class="search-footer">
+          <span class="hint"><kbd>↵</kbd> Search Jira</span>
+          <button class="submit-button" type="submit">Search issues <span aria-hidden="true">↗</span></button>
+        </div>
+      </form>
+
+      {% if error %}
+      <div class="alert" role="alert"><span aria-hidden="true">!</span> {{ error }}</div>
+      {% endif %}
+
+      {% if jql %}
+      <div class="results-heading">
+        <div>
+          <div class="eyebrow result-eyebrow">SEARCH RESULTS</div>
+          <h2>{{ issues|length }} issue{% if issues|length != 1 %}s{% endif %} found</h2>
+        </div>
+        <span class="limit-note">Showing up to {{ result_limit }}</span>
+      </div>
+      <details class="jql-details">
+        <summary>View generated JQL</summary>
+        <code>{{ jql }}</code>
+      </details>
+
+      {% if issues %}
+      <section class="analysis-panel" aria-labelledby="analysis-title">
+        <div class="analysis-heading">
+          <div class="eyebrow result-eyebrow">ISSUE ANALYSIS</div>
+          <h3 id="analysis-title">{{ analysis.total }} matching tasks</h3>
+        </div>
+        <p class="analysis-summary">
+          {{ analysis.unassigned_count }} unassigned
+          {% if analysis.missing_counts %}
+          · Most commonly missing: {{ analysis.missing_counts|sort(attribute=1, reverse=true)|first|first }}
+          ({{ analysis.missing_counts|sort(attribute=1, reverse=true)|first|last }})
+          {% else %}
+          · No missing values in the checked fields
+          {% endif %}
+        </p>
+        <div class="analysis-grid">
+          <div class="analysis-group">
+            <h4>By status</h4>
+            {% for label, count in analysis.status_counts %}
+            <div class="count-row"><span>{{ label }}</span><strong>{{ count }}</strong></div>
+            {% endfor %}
+          </div>
+          <div class="analysis-group">
+            <h4>By issue type</h4>
+            {% for label, count in analysis.type_counts %}
+            <div class="count-row"><span>{{ label }}</span><strong>{{ count }}</strong></div>
+            {% endfor %}
+          </div>
+          <div class="analysis-group">
+            <h4>By priority</h4>
+            {% for label, count in analysis.priority_counts %}
+            <div class="count-row"><span>{{ label }}</span><strong>{{ count }}</strong></div>
+            {% else %}
+            <p class="analysis-muted">No priority values</p>
+            {% endfor %}
+          </div>
+          <div class="analysis-group missing-group">
+            <h4>Missing values</h4>
+            {% for label, count in analysis.missing_counts %}
+            <div class="count-row"><span>{{ label }}</span><strong>{{ count }}</strong></div>
+            {% else %}
+            <p class="analysis-muted">None in the checked fields</p>
+            {% endfor %}
+          </div>
+        </div>
+        <p class="analysis-note">Completeness checks cover the standard fields listed here, not custom or project-specific required fields.</p>
+      </section>
+      {% endif %}
+
+      {% if issues %}
+      <section class="issue-list" aria-label="Jira issues">
+        {% for issue in issues %}
+        {% set fields = issue.get('fields', {}) %}
+        <article class="issue-card">
+          <div class="issue-topline">
+            <span class="issue-key">{{ issue.get('key', '—') }}</span>
+            <span class="issue-status">{{ display_value(fields.get('status')) }}</span>
+          </div>
+          <h3>{{ display_value(fields.get('summary')) }}</h3>
+          {% if issue.get('description_text') %}
+          <p class="issue-description">{{ issue.get('description_text') }}</p>
+          {% endif %}
+          <div class="issue-meta">
+            <span>{{ display_value(fields.get('issuetype')) }}</span>
+            <span class="meta-separator">·</span>
+            <span>{{ display_value(fields.get('project')) }}</span>
+            <span class="meta-separator">·</span>
+            <span>Assigned to {{ display_value(fields.get('assignee'), 'assignee') }}</span>
+            {% if fields.get('priority') %}
+            <span class="meta-separator">·</span>
+            <span>{{ display_value(fields.get('priority')) }} priority</span>
+            {% endif %}
+          </div>
+          {% if issue.get('missing_fields') %}
+          <p class="missing-fields"><strong>Missing:</strong> {{ issue.get('missing_fields')|join(', ') }}</p>
+          {% endif %}
+          {% if issue.get('self') %}
+          <a class="issue-link" href="{{ issue.get('self').split('/rest/api/')[0] }}/browse/{{ issue.get('key') }}" target="_blank" rel="noopener noreferrer">Open issue <span aria-hidden="true">↗</span></a>
+          {% endif %}
+        </article>
+        {% endfor %}
+      </section>
+      {% else %}
+      <div class="empty-state"><span class="empty-icon" aria-hidden="true">⌕</span><h3>No matching issues</h3><p>Try broadening your question or using different words.</p></div>
+      {% endif %}
+      {% endif %}
+    </section>
+    <footer>Searches are sent securely to your configured language service and Jira Cloud.</footer>
+  </main>
+</body>
+</html>
